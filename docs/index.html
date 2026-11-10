@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokens — token analytics for Claude Code and Codex</title>
+<meta name="description" content="Tokens is a free, open-source macOS menu bar app that shows how many tokens Claude Code and Codex use, what that is worth at API prices, and how much value your subscriptions give you. Fully local.">
+<meta property="og:title" content="Tokens — token analytics for Claude Code and Codex">
+<meta property="og:description" content="Free and open source. See your coding agents' token usage and API-equivalent cost live in the macOS menu bar. Everything stays on your Mac.">
+<meta name="theme-color" content="#0d0b0a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><polygon points='32,4 56,18 56,46 32,60 8,46 8,18' fill='%23d97857'/><polygon points='32,18 44,25 44,39 32,46 20,39 20,25' fill='%235c8ffa'/></svg>">
+<style>
+  :root {
+    --bg: #0d0b0a; --fg: #f6f3f1; --muted: #a09a95; --card: #161311; --line: #2a2522;
+    --claude: #d97857; --codex: #5c8ffa; --ok: #34d399;
+    --radius: 18px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f8f5f2; --fg: #16120f; --muted: #6b625b; --card: #ffffff; --line: #e8e1db; }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; overflow-x: hidden; }
+  a { color: inherit; }
+  code { font: 0.9em ui-monospace, "SF Mono", Menlo, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; gap: 12px; }
+  .brand { font-weight: 700; display: flex; gap: 8px; align-items: center; text-decoration: none; }
+  .brand svg { width: 22px; height: 22px; }
+  nav .links { display: flex; gap: 18px; font-size: 15px; }
+  nav .links a { text-decoration: none; color: var(--muted); }
+  nav .links a:hover { color: var(--fg); }
+  header.hero { text-align: center; padding: 48px 0 24px; }
+  h1 { font-size: clamp(38px, 7vw, 76px); line-height: 1.02; letter-spacing: -.035em; margin: 0 0 18px; }
+  h1 span { background: linear-gradient(90deg, var(--claude), var(--codex)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); max-width: 640px; margin: 0 auto 30px; }
+  .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); transition: transform .15s; }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .btn:hover { transform: translateY(-1px); }
+
+  /* --- Menu bar + popover mock (sample data) --- */
+  .stage { margin: 48px auto 0; max-width: 820px; border-radius: 22px 22px 0 0; border: 1px solid var(--line); border-bottom: 0; overflow: hidden;
+    background: radial-gradient(120% 140% at 85% 0%, #6b3a2a 0%, #2a1d2e 45%, #0f1220 100%); padding-bottom: 28px; }
+  .bar { height: 30px; background: rgba(0,0,0,.35); backdrop-filter: blur(10px); display: flex; justify-content: flex-end; align-items: center; gap: 14px; padding: 0 14px; font: 12px/1 -apple-system, system-ui, sans-serif; color: #eceae8; }
+  .bar .item { display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+  .bar .item.active { background: rgba(255,255,255,.18); }
+  .bar .dim { opacity: .7; }
+  .pop { margin: 10px 14px 0 auto; width: min(380px, calc(100% - 28px)); background: rgba(28,24,26,.82); backdrop-filter: blur(24px) saturate(1.4); border: 1px solid rgba(255,255,255,.12); border-radius: 18px; padding: 14px; text-align: left; color: #eceae8; box-shadow: 0 24px 60px rgba(0,0,0,.5); font-size: 12px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(255,255,255,.07); border-radius: 9px; padding: 2px; margin-bottom: 12px; }
+  .seg span { text-align: center; padding: 5px 0; border-radius: 7px; color: #b9b3ae; }
+  .seg span.on { background: rgba(255,255,255,.16); color: #fff; font-weight: 600; }
+  .pcard { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9d968f; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .big { font-size: 28px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .big small { font-size: 14px; font-weight: 500; color: #b9b3ae; margin-left: 6px; }
+  .live { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); text-transform: none; letter-spacing: 0; }
+  .live i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .chart { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; height: 64px; margin-top: 10px; }
+  .chart b { display: flex; flex-direction: column-reverse; border-radius: 2px; overflow: hidden; height: 100%; }
+  .chart b i { display: block; }
+  .chart b i.c { background: var(--claude); } .chart b i.x { background: var(--codex); }
+  .axis { display: flex; justify-content: space-between; color: #8a837d; font-size: 10px; margin-top: 4px; }
+  .rows { display: grid; gap: 7px; }
+  .row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+  .row .n { display: flex; align-items: center; gap: 7px; }
+  .row .n i { width: 8px; height: 8px; border-radius: 3px; }
+  .row .m { color: #9d968f; }
+  .lev { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lev .big { font-size: 22px; }
+  .meter { height: 5px; background: rgba(255,255,255,.1); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .meter i { display: block; height: 100%; border-radius: 4px; }
+  .sample { text-align: center; font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+  section { padding: 72px 0 0; }
+  h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -.025em; margin: 0 0 10px; line-height: 1.15; }
+  .sub { color: var(--muted); margin: 0 0 32px; max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; display: flex; gap: 10px; align-items: center; }
+  .card h3 i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .stat { font-size: 40px; font-weight: 700; letter-spacing: -.03em; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  tr:last-child td { border-bottom: 0; }
+  .tablecard { padding: 0; overflow-x: auto; }
+  pre { background: #110e0c; color: #ece8e4; border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; overflow-x: auto; font: 14px/1.6 ui-monospace, "SF Mono", Menlo, monospace; margin: 0; }
+  pre .c { color: #7d746c; }
+  .callout { margin-top: 72px; background: var(--card); border: 1px solid var(--line); border-radius: 28px; padding: 44px 20px; text-align: center; }
+  footer { color: var(--muted); font-size: 14px; padding: 48px 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  @media (max-width: 640px) { .bar .hide-sm { display: none; } nav .links a.hide-sm { display: none; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><svg viewBox="0 0 64 64" aria-hidden="true"><polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="#d97857"/><polygon points="32,18 44,25 44,39 32,46 20,39 20,25" fill="#5c8ffa"/></svg>Tokens</a>
+    <div class="links">
+      <a class="hide-sm" href="#features">Features</a>
+      <a class="hide-sm" href="#privacy">Privacy</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/Felix-Bergmann-Code/tokens">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <h1>Every token,<br><span>at a glance.</span></h1>
+    <p class="lede">Tokens is a free, open-source menu bar app that shows how many tokens Claude Code and Codex use, what that would cost at API prices, and how much your subscriptions are really worth. It all runs locally.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#install">Get Tokens</a>
+      <a class="btn" href="https://github.com/Felix-Bergmann-Code/tokens">★ Star on GitHub</a>
+    </div>
+
+    <div class="stage" role="img" aria-label="Preview of the Tokens menu bar item with its Overview popover open, using sample numbers">
+      <div class="bar">
+        <span class="item hide-sm dim">◐</span>
+        <span class="item active"><svg width="13" height="13" viewBox="0 0 64 64" aria-hidden="true"><polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="currentColor"/></svg>4.82M</span>
+        <span>Tue 10:42</span>
+      </div>
+      <div class="pop">
+        <div class="seg"><span class="on">Overview</span><span>Months</span><span>Plans</span></div>
+        <div class="pcard">
+          <div class="label"><span>Today</span><span class="live"><i></i>Live</span></div>
+          <div class="big">4.82M<small>tokens</small></div>
+          <div style="color:#b9b3ae;font-variant-numeric:tabular-nums">$41.37 at API prices · 612 requests</div>
+          <div class="chart" id="chart" aria-hidden="true"></div>
+          <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        </div>
+        <div class="pcard">
+          <div class="label"><span>By agent</span><span>API value</span></div>
+          <div class="rows">
+            <div class="row"><span class="n"><i style="background:var(--claude)"></i>Claude Code · Terminal</span><span class="m">2.91M</span><span>$27.80</span></div>
+            <div class="row"><span class="n"><i style="background:var(--claude);opacity:.6"></i>Claude Code · Desktop</span><span class="m">0.88M</span><span>$7.12</span></div>
+            <div class="row"><span class="n"><i style="background:var(--codex)"></i>Codex · Desktop</span><span class="m">1.03M</span><span>$6.45</span></div>
+          </div>
+        </div>
+        <div class="pcard" style="margin-bottom:0">
+          <div class="label"><span>Plan value · 30 days</span></div>
+          <div class="lev">
+            <div><div class="big">6.4×</div><div style="color:#9d968f">Claude Max 20×</div><div class="meter"><i style="width:100%;background:var(--claude)"></i></div></div>
+            <div><div class="big">3.1×</div><div style="color:#9d968f">ChatGPT Plus</div><div class="meter"><i style="width:62%;background:var(--codex)"></i></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="sample">Sample data. The real popover uses Liquid Glass and SwiftUI Charts.</p>
+  </header>
+
+  <section id="features">
+    <h2>Three tabs. Everything you'd want to know.</h2>
+    <p class="sub">Tokens reads the logs your agents already write. It's ready the moment it launches and updates about a second after an agent writes.</p>
+    <div class="grid">
+      <div class="card"><h3><i style="background:var(--claude)"></i>Overview</h3><p>Tokens and API-equivalent cost for today, 7 days, 30 days or all time. Hourly, daily and weekly charts, a per-agent breakdown, top models and insights.</p></div>
+      <div class="card"><h3><i style="background:linear-gradient(135deg,var(--claude),var(--codex))"></i>Months</h3><p>Monthly totals, a 20-week activity heatmap, and each month's value compared with what your plans cost.</p></div>
+      <div class="card"><h3><i style="background:var(--codex)"></i>Plans</h3><p>Your subscriptions' value multiple, the day each one breaks even, effective cost per 1M tokens, and live Codex 5-hour and weekly limit gauges.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every way you run your agents</h2>
+    <p class="sub">Terminal, desktop app, SDK or IDE. Each gets its own line in the breakdown.</p>
+    <div class="card tablecard">
+      <table>
+        <tr><th>Agent</th><th>Read from</th></tr>
+        <tr><td><b>Claude Code</b><br><span style="color:var(--muted)">terminal, desktop app, Agent SDK</span></td><td><code>~/.claude/projects</code><br><span style="color:var(--muted)">respects <code>CLAUDE_CONFIG_DIR</code></span></td></tr>
+        <tr><td><b>Codex</b><br><span style="color:var(--muted)">desktop app, CLI, IDE extension</span></td><td><code>~/.codex/sessions</code>, <code>archived_sessions</code><br><span style="color:var(--muted)">respects <code>CODEX_HOME</code></span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <h2>Your usage never leaves your Mac</h2>
+    <p class="sub">Tokens only keeps token counts, model names and timestamps. It never stores prompt or response text, and it has no network code at all.</p>
+    <div class="grid">
+      <div class="card"><div class="stat">0</div><p>network requests, accounts, trackers and dependencies</p></div>
+      <div class="card"><div class="stat">~1 s</div><p>from an agent writing a log line to the menu bar updating, via FSEvents</p></div>
+      <div class="card"><div class="stat">Δ only</div><p>Logs are append-only, so after the first scan only new bytes are parsed</p></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p class="sub">Build from source in about a minute. Requires macOS 26+ and Xcode 26+.</p>
+<pre>git clone https://github.com/Felix-Bergmann-Code/tokens.git
+cd tokens
+./scripts/build.sh --install   <span class="c"># builds, copies to ~/Applications and launches</span></pre>
+  </section>
+
+  <div class="callout">
+    <h2>Prices change. Agents multiply.</h2>
+    <p class="sub" style="margin:10px auto 26px">Pull requests are very welcome. Updating a model price in <code>Pricing.swift</code> takes five minutes and helps everyone. Support for Gemini CLI, Cursor, Aider or OpenCode would be even better.</p>
+    <div class="ctas">
+      <a class="btn primary" href="https://github.com/Felix-Bergmann-Code/tokens/blob/main/CONTRIBUTING.md">Contributing guide</a>
+      <a class="btn" href="https://github.com/Felix-Bergmann-Code/tokens/issues">Open issues</a>
+    </div>
+  </div>
+
+  <footer>
+    <span>MIT License · Made by <a href="https://github.com/Felix-Bergmann-Code">Felix Bergmann</a> and contributors · Not affiliated with Anthropic or OpenAI</span>
+    <span>Also: <a href="https://felix-bergmann-code.github.io/gauge/">Gauge</a> and <a href="https://felix-bergmann-code.github.io/isle/">Isle</a></span>
+  </footer>
+</div>
+<script>
+  // Sample hourly usage for the mock chart (share of the tallest hour).
+  const claude = [0,0,0,0,0,0,0,.05,.22,.48,.62,.55,.3,.42,.7,.86,.64,.5,.28,.12,.3,.38,.16,0];
+  const codex  = [0,0,0,0,0,0,0,0,.08,.14,.2,.26,.1,.12,.18,.14,.22,.3,.12,.06,.1,.08,0,0];
+  const chart = document.getElementById('chart');
+  claude.forEach((c, i) => {
+    const b = document.createElement('b');
+    b.innerHTML = `<i class="c" style="height:${c*100}%"></i><i class="x" style="height:${codex[i]*100}%"></i>`;
+    chart.appendChild(b);
+  });
+</script>
+</body>
+</html>

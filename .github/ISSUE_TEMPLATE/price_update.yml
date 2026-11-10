@@ -1,0 +1,34 @@
+name: Price update
+description: A model is missing or its price is out of date
+labels: [pricing]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model id
+      description: As it appears in the logs or `Tokens --dump`
+      placeholder: e.g. claude-sonnet-5-1
+    validations:
+      required: true
+  - type: textarea
+    id: price
+    attributes:
+      label: Correct price (USD per 1M tokens)
+      placeholder: |
+        input:
+        cached input:
+        output:
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Link to the official pricing page
+    validations:
+      required: true
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to open a PR for this myself
